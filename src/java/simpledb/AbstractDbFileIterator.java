@@ -1,5 +1,6 @@
 package simpledb;
 
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /** Helper for implementing DbFileIterators. Handles hasNext()/next() logic. */
@@ -26,6 +27,7 @@ public abstract class AbstractDbFileIterator implements DbFileIterator {
     public void close() {
         // Ensures that a future call to next() will fail
         next = null;
+        pageItr = null;
     }
 
     /** Reads the next tuple from the underlying source.
@@ -33,4 +35,6 @@ public abstract class AbstractDbFileIterator implements DbFileIterator {
     protected abstract Tuple readNext() throws DbException, TransactionAbortedException;
 
     private Tuple next = null;
+    public Iterator<Tuple> pageItr;
+    public int pageNum;
 }

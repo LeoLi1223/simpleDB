@@ -17,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * @Threadsafe
  */
 public class Catalog {
+    private Map<String, Map.Entry<DbFile, String>> nameToTablePkey;
+    private Map<Integer, String> idToName;
 
     /**
      * Constructor.
@@ -24,6 +26,8 @@ public class Catalog {
      */
     public Catalog() {
         // some code goes here
+        nameToTablePkey = new HashMap<>();
+        idToName = new HashMap<>();
     }
 
     /**
@@ -37,6 +41,15 @@ public class Catalog {
      */
     public void addTable(DbFile file, String name, String pkeyField) {
         // some code goes here
+        if (name == null) {
+            throw new IllegalArgumentException("Table name cannot be empty");
+        }
+        nameToTablePkey.put(name, new AbstractMap.SimpleEntry<>(file, pkeyField));
+        if (idToName.containsKey(file.getId())) {
+            String oldName = idToName.get(file.getId());
+            nameToTablePkey.remove(oldName);
+        }
+        idToName.put(file.getId(), name);
     }
 
     public void addTable(DbFile file, String name) {
@@ -60,7 +73,10 @@ public class Catalog {
      */
     public int getTableId(String name) throws NoSuchElementException {
         // some code goes here
-        return 0;
+        if (name == null || !nameToTablePkey.containsKey(name)) {
+            throw new NoSuchElementException();
+        }
+        return nameToTablePkey.get(name).getKey().getId();
     }
 
     /**
@@ -71,7 +87,7 @@ public class Catalog {
      */
     public TupleDesc getTupleDesc(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        return getDatabaseFile(tableid).getTupleDesc();
     }
 
     /**
@@ -82,27 +98,30 @@ public class Catalog {
      */
     public DbFile getDatabaseFile(int tableid) throws NoSuchElementException {
         // some code goes here
-        return null;
+        String name = getTableName(tableid);
+        return nameToTablePkey.get(name).getKey();
     }
 
     public String getPrimaryKey(int tableid) {
-        // some code goes here
-        return null;
+        String name = getTableName(tableid);
+        return nameToTablePkey.get(name).getValue();
     }
 
     public Iterator<Integer> tableIdIterator() {
         // some code goes here
-        return null;
+        return idToName.keySet().iterator();
     }
 
     public String getTableName(int id) {
         // some code goes here
-        return null;
+        return idToName.get(id);
     }
     
     /** Delete all tables from the catalog */
     public void clear() {
         // some code goes here
+        nameToTablePkey.clear();
+        idToName.clear();
     }
     
     /**
