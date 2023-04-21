@@ -1,5 +1,10 @@
 package simpledb;
 
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
 /**
  * Knows how to compute some aggregate over a set of StringFields.
  */
@@ -7,6 +12,14 @@ public class StringAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
 
+    private int gbfield;
+    private Type gbfieldType;
+    private int afield;
+    private Op what;
+    private Map<Field, Integer> groups;
+
+    private boolean open;
+    private Iterator<Map.Entry<Field, Integer>> groupsItr;
     /**
      * Aggregate constructor
      * @param gbfield the 0-based index of the group-by field in the tuple, or NO_GROUPING if there is no grouping
@@ -18,6 +31,17 @@ public class StringAggregator implements Aggregator {
 
     public StringAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
         // some code goes here
+        if (what != Op.COUNT) {
+            throw new IllegalArgumentException("StringAggregator only support the COUNT operation");
+        }
+        this.gbfield = gbfield;
+        this.gbfieldType = gbfieldtype;
+        this.afield = afield;
+        this.what = what;
+        this.groups = new HashMap<>();
+
+        this.open = false;
+        this.groupsItr = null;
     }
 
     /**
@@ -26,6 +50,15 @@ public class StringAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // some code goes here
+        Field groupby = gbfield == NO_GROUPING ? new IntField(NO_GROUPING): tup.getField(gbfield);
+        StringField toAggr = (StringField) tup.getField(afield);
+        if (what == Op.COUNT) {
+            if (!groups.containsKey(groupby)) {
+                groups.put(groupby, 1);
+            } else {
+                groups.put(groupby, 1 + groups.get(groupby));
+            }
+        }
     }
 
     /**
@@ -38,7 +71,60 @@ public class StringAggregator implements Aggregator {
      */
     public OpIterator iterator() {
         // some code goes here
-        throw new UnsupportedOperationException("please implement me for lab2");
+        return new OpIterator() {
+            @Override
+            public void open() throws DbException, TransactionAbortedException {
+                open = true;
+                groupsItr = groups.entrySet().iterator();
+            }
+
+            @Override
+            public boolean hasNext() throws DbException, TransactionAbortedException {
+                if (!open) throw new IllegalStateException("Not open yet");
+                return groupsItr.hasNext();
+            }
+
+            @Override
+            public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+                if (!open) throw new IllegalStateException("Not open yet");
+                Map.Entry<Field, Integer> nextGroup = groupsItr.next();
+                Field groupVal = nextGroup.getKey();
+                int aggrVal = nextGroup.getValue();
+
+                Tuple next = new Tuple(getTupleDesc());
+                if (gbfield == NO_GROUPING) {
+                    next.setField(0, new IntField(aggrVal));
+                } else {
+                    next.setField(0, groupVal);
+                    next.setField(1, new IntField(aggrVal));
+                }
+                return next;
+            }
+
+            @Override
+            public void rewind() throws DbException, TransactionAbortedException {
+                if (!open) throw new IllegalStateException("Not open yet");
+                close();
+                open();
+            }
+
+            @Override
+            public TupleDesc getTupleDesc() {
+                Type[] types;
+                if (gbfield == NO_GROUPING) {
+                    types = new Type[]{Type.INT_TYPE};
+                } else {
+                    types = new Type[]{gbfieldType, Type.INT_TYPE};
+                }
+                return new TupleDesc(types);
+            }
+
+            @Override
+            public void close() {
+                open = false;
+                groupsItr = null;
+            }
+        };
     }
 
 }
