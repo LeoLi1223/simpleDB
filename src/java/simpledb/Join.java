@@ -75,6 +75,8 @@ public class Join extends Operator {
 
     public void close() {
         // some code goes here
+        child2.close();
+        child1.close();
         super.close();
     }
 
@@ -104,7 +106,10 @@ public class Join extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        if (left == null) left = child1.next();
+        if (left == null) {
+            left = child1.next();
+            child2.rewind();
+        }
         while (child2.hasNext()) {
             Tuple right = child2.next();
             if (this.p.filter(left, right)) {
@@ -122,7 +127,6 @@ public class Join extends Operator {
                 }
             }
         }
-
         return null;
     }
 
