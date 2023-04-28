@@ -1,0 +1,16 @@
+Feedback for: zli7
+--------------------------------------------------------------
+Total Score (%): 97
+Unit Test Score (out of 32): 32
+System Test Score (out of 4): 4
+Code Score (out of 10): 9
+Writeup Score (out of 10): 8
+--------------------------------------------------------------
+Code Feedback(9/10):
+Good job overall.
+(-1): For getPage() in BufferPool, you should check whether the requested page is in the buffer pool before checking whether the buffer pool is full. If the buffer pool is full but the page is already in memory, you can simply return the page rather than throwing an error or evicting any pages (in future labs). 
+
+Writeup Feedback (8/10):
+Good job overall.
+(-1) Your description of SeqScan should be more explicit that it doesn't read tuples directly from disk; the buffer pool is responsible for reading pages from disk to memory. 
+(-1) Please elaborate more on your design choices. We expect more than two short sentences.
