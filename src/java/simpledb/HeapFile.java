@@ -67,7 +67,6 @@ public class HeapFile implements DbFile {
         return this.td;
     }
 
-    static int numRead = 0;
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
         // some code goes here
@@ -76,8 +75,6 @@ public class HeapFile implements DbFile {
             throw new IllegalArgumentException("The page does not exist in this file.");
         }
         int offset = BufferPool.getPageSize() * pid.getPageNumber();
-        numRead++;
-        System.out.println(numRead);
         try {
             RandomAccessFile raf = new RandomAccessFile(file, "r");
             raf.seek(offset);

@@ -65,18 +65,42 @@ public class Join extends Operator {
     }
 
     private Tuple left;
+    private HashMap<Field, List<Tuple>> hashJoin;
+    private Tuple inner;
+    private Iterator<Tuple> matchedTuples;
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
         super.open();
         child1.open();
         child2.open();
+
+        // if join on equality, using hash join
+        if (p.getOperator().equals(Predicate.Op.EQUALS)) {
+            hashJoin = new HashMap<>();
+            // scan child1 and build hashJoin
+            while (child1.hasNext()) {
+                Tuple t1 = child1.next();
+                int f1num = p.getField1();
+                Field f1 = t1.getField(f1num);
+                if (!hashJoin.containsKey(f1)) {
+                    this.hashJoin.put(f1, new ArrayList<>());
+                }
+                hashJoin.get(f1).add(t1);
+            }
+        }
+        // use nested-loop join on other join predicate operations
     }
 
     public void close() {
         // some code goes here
-        child2.close();
+        if (p.getOperator().equals(Predicate.Op.EQUALS)) {
+            hashJoin = null;
+            inner = null;
+            matchedTuples = null;
+        }
         child1.close();
+        child2.close();
         super.close();
     }
 
@@ -106,24 +130,52 @@ public class Join extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        if (left == null) {
-            left = child1.next();
-            child2.rewind();
-        }
-        while (child2.hasNext()) {
-            Tuple right = child2.next();
-            if (this.p.filter(left, right)) {
-                return joinTuple(left, right);
+        if (p.getOperator().equals(Predicate.Op.EQUALS)) { // hash join
+            if (inner == null) { // only on the first call
+                inner = child2.next();
+                List<Tuple> tupleList = hashJoin.getOrDefault(inner.getField(p.getField2()), new ArrayList<>());
+                matchedTuples = tupleList.iterator();
             }
-        }
-
-        while (child1.hasNext()) {
-            left = child1.next();
-            child2.rewind();
+            while (matchedTuples.hasNext()) {
+                Tuple outer = matchedTuples.next();
+                if (this.p.filter(outer, inner)) {
+                    return joinTuple(outer, inner);
+                }
+            }
+            while (child2.hasNext()) {
+                inner = child2.next();
+                int f2num = p.getField2();
+                Field f2 = inner.getField(f2num);
+                List<Tuple> tupleList = hashJoin.getOrDefault(f2, new ArrayList<>());
+                matchedTuples = tupleList.iterator();
+                while (matchedTuples.hasNext()) {
+                    Tuple outer = matchedTuples.next();
+                    if (this.p.filter(outer, inner)) {
+                        return joinTuple(outer, inner);
+                    }
+                }
+            }
+        } else {
+            // nested-loop join
+            if (left == null) {
+                left = child1.next();
+                child2.rewind();
+            }
             while (child2.hasNext()) {
                 Tuple right = child2.next();
                 if (this.p.filter(left, right)) {
                     return joinTuple(left, right);
+                }
+            }
+
+            while (child1.hasNext()) {
+                left = child1.next();
+                child2.rewind();
+                while (child2.hasNext()) {
+                    Tuple right = child2.next();
+                    if (this.p.filter(left, right)) {
+                        return joinTuple(left, right);
+                    }
                 }
             }
         }
@@ -153,5 +205,4 @@ public class Join extends Operator {
         child1 = children[0];
         child2 = children[1];
     }
-
 }

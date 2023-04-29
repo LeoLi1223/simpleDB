@@ -90,7 +90,7 @@ public class Aggregate extends Operator {
      * */
     public String aggregateFieldName() {
         // some code goes here
-        return child.getTupleDesc().getFieldName(aField);
+        return nameOfAggregatorOp(this.op) + " (" + child.getTupleDesc().getFieldName(aField) + ")";
     }
 
     /**
@@ -158,7 +158,18 @@ public class Aggregate extends Operator {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return aggregator.iterator().getTupleDesc();
+        TupleDesc td = aggregator.iterator().getTupleDesc();
+        Type[] types;
+        String[] fieldNames;
+        if (td.numFields() == 1) {
+            types = new Type[]{td.getFieldType(0)};
+            fieldNames = new String[]{aggregateFieldName()};
+        } else {
+            types = new Type[]{td.getFieldType(0), td.getFieldType(1)};
+            fieldNames = new String[]{groupFieldName(), aggregateFieldName()};
+        }
+        td = new TupleDesc(types, fieldNames);
+        return td;
     }
 
     public void close() {

@@ -523,9 +523,11 @@ public class Parser {
                     else if (s instanceof ZDelete)
                         query = handleDeleteStatement((ZDelete) s,
                                 curtrans.getId());
-                    else if (s instanceof ZQuery)
+                    else if (s instanceof ZQuery) {
                         query = handleQueryStatement((ZQuery) s,
                                 curtrans.getId());
+                        System.out.println(query);
+                    }
                     else {
                         System.out
                                 .println("Can't parse "
