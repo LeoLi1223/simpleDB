@@ -32,6 +32,7 @@ public class BufferPool {
     private Map<PageId, Page> pidToPage;
     private int numPages;
     private LinkedList<PageId> lruList;
+    private LockManager lockManager;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -44,6 +45,7 @@ public class BufferPool {
         pidToPage = new HashMap<>();
         // the first PageId is least recently used.
         lruList = new LinkedList<>();
+        lockManager = new LockManager();
     }
     
     public static int getPageSize() {
@@ -78,7 +80,11 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        // lab1
+        // grab lock here
+        if (!holdsLock(tid, pid, perm)) {
+            lockManager.acquireLock(tid, pid, perm);
+        }
+
         if (pidToPage.containsKey(pid)) {
             // remove original node
             lruList.remove(pid);
@@ -111,9 +117,10 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      * @param pid the ID of the page to unlock
      */
-    public  void releasePage(TransactionId tid, PageId pid) {
+    public void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        lockManager.releaseLock(tid, pid);
     }
 
     /**
@@ -127,10 +134,14 @@ public class BufferPool {
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
-    public boolean holdsLock(TransactionId tid, PageId p) {
+    public boolean holdsLock(TransactionId tid, PageId pid, Permissions perm) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        if (perm.equals(Permissions.READ_ONLY)) {
+            return lockManager.holdsSharedLock(tid, pid) || lockManager.holdsExclusiveLock(tid, pid);
+        } else {
+            return lockManager.holdsExclusiveLock(tid, pid);
+        }
     }
 
     /**
