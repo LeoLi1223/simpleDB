@@ -15,7 +15,10 @@ public abstract class AbstractDbFileIterator implements DbFileIterator {
             NoSuchElementException {
         if (next == null) {
             next = readNext();
-            if (next == null) throw new NoSuchElementException();
+            if (next == null) {
+                System.out.println("Thread: " + Thread.currentThread().getId() + " throw NoSuchElementException");
+                throw new NoSuchElementException();
+            }
         }
 
         Tuple result = next;

@@ -37,6 +37,7 @@ public class SeqScan implements OpIterator {
         this.tableid = tableid;
         this.alias = tableAlias;
         this.fileIterator = null;
+        this.open = false;
     }
 
     /**
@@ -80,11 +81,13 @@ public class SeqScan implements OpIterator {
         this(tid, tableId, Database.getCatalog().getTableName(tableId));
     }
 
+    private boolean open;
     public void open() throws DbException, TransactionAbortedException {
         // some code goes here
         DbFile file = Database.getCatalog().getDatabaseFile(this.tableid);
-        fileIterator = file.iterator(tid);
-        fileIterator.open();
+        this.fileIterator = file.iterator(tid);
+        this.fileIterator.open();
+        this.open = true;
     }
 
     /**
@@ -121,29 +124,28 @@ public class SeqScan implements OpIterator {
 
     public boolean hasNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        if (fileIterator == null) throw new IllegalStateException();
+        if (!open) throw new IllegalStateException();
         return fileIterator.hasNext();
     }
 
     public Tuple next() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
-        if (fileIterator == null) throw new IllegalStateException();
-        if (!hasNext())  throw new NoSuchElementException();
-        Tuple next = fileIterator.next();
-        return next;
+        System.out.println("SeqScan txn: " + tid.getId());
+        if (!open) throw new IllegalStateException();
+        return fileIterator.next();
     }
 
     public void close() {
         // some code goes here
-//        fileIterator.close();
-        fileIterator = null;
+        fileIterator.close();
+        open = false;
     }
 
     public void rewind() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
-        if (fileIterator == null) throw new IllegalStateException();
+        if (!open) throw new IllegalStateException();
         close();
         open();
     }

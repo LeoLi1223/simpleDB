@@ -97,6 +97,7 @@ public class TransactionTest extends SimpleDbTestBase {
                         Query q1 = new Query(ss1, tr.getId());
                         q1.start();
                         Tuple tup = q1.next();
+                        System.out.println("Txn: " + tr.getId().getId() + " read tuple: " + tup);
                         IntField intf = (IntField) tup.getField(0);
                         int i = intf.getValue();
 
@@ -133,15 +134,17 @@ public class TransactionTest extends SimpleDbTestBase {
                         q3.close();
 
                         tr.commit();
+                        System.out.println("thread " + this.getId() + " txn: " + tr.getId().getId() + " committed");
                         break;
                     } catch (TransactionAbortedException te) {
-                        //System.out.println("thread " + tr.getId() + " killed");
+                        System.out.println("thread " + this.getId() + " txn: " + tr.getId().getId() + " killed");
+//                        System.out.println("thread " + tr.getId() + " killed");
                         // give someone else a chance: abort the transaction
                         tr.transactionComplete(true);
                         latch.stillParticipating();
                     }
                 }
-                //System.out.println("thread " + id + " done");
+                System.out.println("thread " + this.getId() + " done");
             } catch (Exception e) {
                 // Store exception for the master thread to handle
                 exception = e;

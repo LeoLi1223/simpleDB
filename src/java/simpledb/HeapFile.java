@@ -115,26 +115,28 @@ public class HeapFile implements DbFile {
         // some code goes here
         ArrayList<Page> ret = new ArrayList<>();
         int pnum = 0;
-        while (pnum < numPages()) {
-            PageId pid = new HeapPageId(getId(), pnum);
-            HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_WRITE);
-            if (page.getNumEmptySlots() > 0) {
+        synchronized (this) {
+            while (pnum < numPages()) {
+                PageId pid = new HeapPageId(getId(), pnum);
+                HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_WRITE);
+                if (page.getNumEmptySlots() > 0) {
+                    page.insertTuple(t);
+                    ret.add(page);
+                    break;
+                }
+                pnum++;
+            }
+            if (pnum == numPages()) {
+                // need to append a new page to the end of the HeapFile.
+                HeapPage page = new HeapPage(new HeapPageId(getId(), pnum), HeapPage.createEmptyPageData());
+                writePage(page);
+
+                page = (HeapPage) Database.getBufferPool().getPage(tid, page.getId(), READ_WRITE);
                 page.insertTuple(t);
                 ret.add(page);
-                break;
             }
-            pnum++;
+            return ret;
         }
-        if (pnum == numPages()) {
-            // need to append a new page to the end of the HeapFile.
-            HeapPage page = new HeapPage(new HeapPageId(getId(), pnum), HeapPage.createEmptyPageData());
-            writePage(page);
-
-            page = (HeapPage) Database.getBufferPool().getPage(tid, page.getId(), READ_WRITE);
-            page.insertTuple(t);
-            ret.add(page);
-        }
-        return ret;
     }
 
     // see DbFile.java for javadocs
@@ -149,6 +151,7 @@ public class HeapFile implements DbFile {
             throw new DbException("The tuple is not in this file.");
         }
         ArrayList<Page> ret = new ArrayList<>();
+        System.out.println("Txn: " + tid.getId() + " delete on page: " + pid.getPageNumber());
         HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_WRITE);
         page.deleteTuple(t);
         ret.add(page);
@@ -166,38 +169,35 @@ public class HeapFile implements DbFile {
                 if (pageItr == null) {
                     return null;
                 }
-                if (pageItr.hasNext()) {
-                    return pageItr.next();
-                }
-                while (pageNum < numPages() - 1) {
+                while (!pageItr.hasNext()) {
                     pageNum++;
+                    if (pageNum >= numPages()) {
+                        return null;
+                    }
                     HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, new HeapPageId(getId(), pageNum), READ_ONLY);
                     pageItr = page.iterator();
-                    if (pageItr.hasNext()) {
-                        return pageItr.next();
-                    }
                 }
-                return null;
+                return pageItr.next();
             }
 
             @Override
             public void open() throws DbException, TransactionAbortedException {
-                if (numPages() > 0) {
-                    HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, new HeapPageId(getId(), 0), READ_ONLY);
-                    pageItr = page.iterator();
-                    pageNum = 0;
-                }
+                HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, new HeapPageId(getId(), 0), READ_ONLY);
+                pageItr = page.iterator();
+                pageNum = 0;
             }
 
             @Override
             public void rewind() throws DbException, TransactionAbortedException {
-                throw new DbException("rewind() is not supported");
+                close();
+                open();
             }
 
             @Override
             public void close() {
                 super.close();
                 pageItr = null;
+                pageNum = 0;
             }
         };
     }

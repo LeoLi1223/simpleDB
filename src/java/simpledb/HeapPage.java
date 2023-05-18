@@ -368,6 +368,24 @@ public class HeapPage implements Page {
             }
         }
         return tupleList.iterator();
+//        return new Iterator<>() {
+//            private int idx = 0;
+//            private int numRead = 0;
+//            private int numSlots = getNumTuples() - getNumEmptySlots();
+//
+//            @Override
+//            public boolean hasNext() {
+//                return idx < getNumTuples() && numRead < numSlots;
+//            }
+//
+//            @Override
+//            public Tuple next() {
+//                while(!isSlotUsed(idx)){
+//                    idx++;
+//                }
+//                return tuples[idx++];
+//            }
+//        };
     }
 
 }
