@@ -1,0 +1,15 @@
+Feedback for: zli7
+--------------------------------------------------------------
+Total Score (%): 99
+Unit Test Score (out of 38): 38
+System Test Score (out of 24): 24
+Code Score (out of 10): 9
+Writeup Score (out of 10): 10
+--------------------------------------------------------------
+Code Feedback:
+(-1) It'd be better if you had some comments for more complicated implementation parts (e.g Join.fetchNext() or iterators for the aggregators, etc)
+(-0) Just a note that in Integer/StringAggregator, you can actually use TupleIterator instead of creating your own AggregatorIterator.
+
+Writeup Feedback:
+Great job explaining the lab and your design choices in detail! 
+
