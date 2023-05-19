@@ -41,7 +41,6 @@ public class LockManager {
 //            System.out.println("[CAUSE]  after-hasDeadlock() wait-for graph: " + this.waitfor);
             releaseAll(tid);
 //            System.out.println("[RESOLVED]  after-resolve-deadlock() wait-for graph: " + this.waitfor);
-            notifyAll();
             // do not call transactionComplete(tid, commit=False) in lab3
             throw new TransactionAbortedException();
         }
@@ -91,6 +90,7 @@ public class LockManager {
             waitfor.get(txnid).remove(tid);
         }
         waitfor.remove(tid);
+        notifyAll();
     }
 
     /**
