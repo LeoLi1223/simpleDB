@@ -73,11 +73,11 @@ public class Insert extends Operator {
      * @see BufferPool#insertTuple
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
+        System.out.println("Insert txn: " + tid.getId());
         // some code goes here
         if (called) {
             return null;
         }
-
         called = true;
         int added = 0;
         while (child.hasNext()) {

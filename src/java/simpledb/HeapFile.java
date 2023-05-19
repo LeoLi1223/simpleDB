@@ -115,28 +115,29 @@ public class HeapFile implements DbFile {
         // some code goes here
         ArrayList<Page> ret = new ArrayList<>();
         int pnum = 0;
-        synchronized (this) {
-            while (pnum < numPages()) {
-                PageId pid = new HeapPageId(getId(), pnum);
-                HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_WRITE);
-                if (page.getNumEmptySlots() > 0) {
-                    page.insertTuple(t);
-                    ret.add(page);
-                    break;
-                }
-                pnum++;
-            }
-            if (pnum == numPages()) {
-                // need to append a new page to the end of the HeapFile.
-                HeapPage page = new HeapPage(new HeapPageId(getId(), pnum), HeapPage.createEmptyPageData());
-                writePage(page);
-
-                page = (HeapPage) Database.getBufferPool().getPage(tid, page.getId(), READ_WRITE);
+        while (pnum < numPages()) {
+            PageId pid = new HeapPageId(getId(), pnum);
+            HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_ONLY);
+            if (page.getNumEmptySlots() > 0) {
+                page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_WRITE);
                 page.insertTuple(t);
                 ret.add(page);
+                break;
+            } else {
+                Database.getBufferPool().releasePage(tid, pid);
             }
-            return ret;
+            pnum++;
         }
+        if (pnum == numPages()) {
+            // need to append a new page to the end of the HeapFile.
+            HeapPage page = new HeapPage(new HeapPageId(getId(), pnum), HeapPage.createEmptyPageData());
+            writePage(page);
+
+            page = (HeapPage) Database.getBufferPool().getPage(tid, page.getId(), READ_WRITE);
+            page.insertTuple(t);
+            ret.add(page);
+        }
+        return ret;
     }
 
     // see DbFile.java for javadocs
@@ -151,19 +152,20 @@ public class HeapFile implements DbFile {
             throw new DbException("The tuple is not in this file.");
         }
         ArrayList<Page> ret = new ArrayList<>();
-        System.out.println("Txn: " + tid.getId() + " delete on page: " + pid.getPageNumber());
+//        System.out.println("[Arrival delete]  Txn: " + tid.getId() + " delete on page: " + pid.getPageNumber());
         HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, READ_WRITE);
         page.deleteTuple(t);
+//        System.out.println("[Complete delete]  Txn: " + tid.getId() + " delete on page: " + pid.getPageNumber());
         ret.add(page);
         return ret;
     }
 
-    private Iterator<Tuple> pageItr;
-    private int pageNum;
-    // see DbFile.java for javadocs
+//     see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
         return new AbstractDbFileIterator() {
+            Iterator<Tuple> pageItr;
+            int pageNum;
             @Override
             protected Tuple readNext() throws DbException, TransactionAbortedException {
                 if (pageItr == null) {

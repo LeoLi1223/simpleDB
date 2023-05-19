@@ -37,9 +37,11 @@ public class LockManager {
         // update wait-for graph
         addWaitFor(tid, waitFor);
         // if there is a cycle in wait-for graph, abort the current txn. (design decision)
-        System.out.println("before-hasDeadLock() wait-for graph: " + this.waitfor);
         if (hasDeadLock()) {
-            System.out.println("after-deadlock() wait-for graph: " + this.waitfor);
+//            System.out.println("[CAUSE]  after-hasDeadlock() wait-for graph: " + this.waitfor);
+            releaseAll(tid);
+//            System.out.println("[RESOLVED]  after-resolve-deadlock() wait-for graph: " + this.waitfor);
+            notifyAll();
             // do not call transactionComplete(tid, commit=False) in lab3
             throw new TransactionAbortedException();
         }
@@ -47,7 +49,9 @@ public class LockManager {
         if (perm.equals(Permissions.READ_ONLY)) {
             while (!acquireSharedLock(tid, pid)) {
                 try {
-                    wait();
+                    wait(100);
+                    releaseAll(tid);
+                    throw new TransactionAbortedException();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -55,7 +59,9 @@ public class LockManager {
         } else {
             while (!acquireExclusiveLock(tid, pid)) {
                 try {
-                    wait();
+                    wait(100);
+                    releaseAll(tid);
+                    throw new TransactionAbortedException();
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -66,7 +72,7 @@ public class LockManager {
     public synchronized void releaseLock(TransactionId tid, PageId pid) {
         sharedLock.getOrDefault(pid, new HashSet<>()).remove(tid);
         exclusiveLock.remove(pid);
-        System.out.println("--RELEASE Thread: " + Thread.currentThread().getId() + " Transaction: " + tid.getId() + "\nPage: " + pid + "\nShared: " + sharedLock + "\nExclusive: " + exclusiveLock + "\n");
+//        System.out.println("--RELEASE Thread: " + Thread.currentThread().getId() + " Transaction: " + tid.getId() + "\nPage: " + pid + "\nShared: " + sharedLock + "\nExclusive: " + exclusiveLock + "\n");
         notifyAll();
     }
 

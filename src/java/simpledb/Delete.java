@@ -63,7 +63,7 @@ public class Delete extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        System.out.println("Delete txn: " + tid.getId());
+//        System.out.println("Delete txn: " + tid.getId());
         if (called) return null;
 
         called = true;

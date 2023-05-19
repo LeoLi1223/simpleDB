@@ -27,7 +27,7 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
-    private Map<PageId, Page> pidToPage;
+    private ConcurrentHashMap<PageId, Page> pidToPage;
     private int numPages;
     private ArrayList<PageId> lruList;
     private LockManager lockManager;
@@ -80,7 +80,7 @@ public class BufferPool {
         // try acquiring lock
         // request for the specific lock on pid
         lockManager.acquireLock(tid, pid, perm); // possibly wait on lockManager
-        System.out.println("--ACQUIRE Thread: " + Thread.currentThread().getId() + " Transaction: " + tid.getId() + "\nPage: " + pid + "\nPerm: " + perm + "\n");
+//        System.out.println("--ACQUIRE Thread: " + Thread.currentThread().getId() + " Transaction: " + tid.getId() + "\nPage: " + pid + "\nPerm: " + perm + "\n");
 
         synchronized (this) {
             if (pidToPage.containsKey(pid)) {

@@ -131,15 +131,14 @@ public class SeqScan implements OpIterator {
     public Tuple next() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
-        System.out.println("SeqScan txn: " + tid.getId());
         if (!open) throw new IllegalStateException();
-        return fileIterator.next();
+        return this.fileIterator.next();
     }
 
     public void close() {
         // some code goes here
-        fileIterator.close();
-        open = false;
+        this.fileIterator.close();
+        this.open = false;
     }
 
     public void rewind() throws DbException, NoSuchElementException,
