@@ -82,6 +82,7 @@ public class LogFile {
     static final int UPDATE_RECORD = 3;
     static final int BEGIN_RECORD = 4;
     static final int CHECKPOINT_RECORD = 5;
+    static final int CLR_RECORD = 6;
     static final long NO_CHECKPOINT_ID = -1;
 
     final static int INT_SIZE = 4;
@@ -105,7 +106,7 @@ public class LogFile {
         @param f The log file's name
     */
     public LogFile(File f) throws IOException {
-	this.logFile = f;
+	    this.logFile = f;
         raf = new RandomAccessFile(f, "rw");
         recoveryUndecided = true;
 
@@ -453,6 +454,19 @@ public class LogFile {
         //print();
     }
 
+    public synchronized void logCLR(long tid, Page page, long undoNextLogOffset) throws IOException {
+        preAppend();
+
+        raf.writeInt(CLR_RECORD); // type
+        raf.writeLong(tid); // tid associated with the log record being undone
+        writePageData(raf, page);
+        raf.writeLong(undoNextLogOffset); // offset of the next log record to be undone
+        raf.writeLong(currentOffset); // starting offset of the record
+        currentOffset = raf.getFilePointer();
+
+//        Debug.log("CLR OFFSET = " + currentOffset);
+    }
+
     /** Rollback the specified transaction, setting the state of any
         of pages it updated to their pre-updated state.  To preserve
         transaction semantics, this should not be called on
@@ -466,7 +480,72 @@ public class LogFile {
         synchronized (Database.getBufferPool()) {
             synchronized(this) {
                 preAppend();
-                // some code goes here
+                // undo all log records associated with the txn
+                Set<Long> uncommitted = new HashSet<>();
+                uncommitted.add(tid.getId());
+                undo(uncommitted);
+            }
+        }
+    }
+
+    private void undo(Set<Long> uncommitted) throws IOException {
+        long startOffset = raf.length();
+        for (Long tid : uncommitted) {
+            startOffset = Math.min(startOffset, tidToFirstLogRecord.get(tid));
+        }
+        raf.seek(startOffset);
+
+        Stack<Long> undoOffsets = new Stack<>();
+
+        while (true) {
+            try {
+                int type = raf.readInt();
+                long tid = raf.readLong();
+
+                switch (type) {
+                    case UPDATE_RECORD:
+                        if (uncommitted.contains(tid)) {
+                            undoOffsets.push(raf.getFilePointer() - INT_SIZE - LONG_SIZE);
+                        }
+                        readPageData(raf);
+                        readPageData(raf);
+                        break;
+
+                    case CHECKPOINT_RECORD:
+                        int numTxn = raf.readInt();
+                        raf.skipBytes(2 * numTxn * LONG_SIZE); // skip txn records
+                        break;
+
+                    case CLR_RECORD:
+                        undoOffsets.pop();
+                        break;
+
+                    default:
+                        break;
+                }
+                raf.skipBytes(LONG_SIZE); // skip start offset block
+            } catch (EOFException e) { // reaching the end of the log file.
+                break;
+            }
+        }
+
+        // Now the stack contains all offsets of the log records to be undone.
+        while (!undoOffsets.isEmpty()) {
+            long off = undoOffsets.pop();
+            raf.seek(off);
+            raf.readInt(); // type which must be UPDATE_RECORD
+            long tid = raf.readLong(); // txn id
+            Page before = readPageData(raf);
+
+            HeapFile f = (HeapFile) Database.getCatalog().getDatabaseFile(before.getId().getTableId());
+            Database.getBufferPool().discardPage(before.getId());
+            f.writePage(before);
+
+            raf.seek(raf.length());
+            if (!undoOffsets.isEmpty()) {
+                logCLR(tid, before, undoOffsets.peek());
+            } else {
+                logCLR(tid, before, -1L);
             }
         }
     }
@@ -494,13 +573,168 @@ public class LogFile {
             synchronized (this) {
                 recoveryUndecided = false;
                 // some code goes here
+                raf.seek(0);
+                long cpOffset = raf.readLong();
+
+                Set<Long> uncommitted = new HashSet<>();
+                if (cpOffset != NO_CHECKPOINT_ID) {
+                    raf.seek(cpOffset);
+                    raf.skipBytes(INT_SIZE + LONG_SIZE); // skip type + tid blocks
+                    int numTxn = raf.readInt();
+                    for (int i = 0; i < numTxn; i++) {
+                        long tid = raf.readLong(); // active txn id
+                        long off = raf.readLong(); // first record offset for the active tid
+                        tidToFirstLogRecord.put(tid, off);
+                        uncommitted.add(tid);
+                    }
+                    raf.skipBytes(LONG_SIZE); // skip start offset block
+                }
+
+                // redo: scan from the last checkpoint
+                while (true) {
+                    try {
+                        int type = raf.readInt(); // log record type
+                        long tid = raf.readLong(); // log record tid
+                        switch (type) {
+                            case UPDATE_RECORD:
+                                readPageData(raf);
+                                Page after = readPageData(raf);
+
+                                HeapFile f = (HeapFile) Database.getCatalog().getDatabaseFile(after.getId().getTableId());
+                                Database.getBufferPool().discardPage(after.getId());
+                                f.writePage(after);
+                                break;
+
+                            case BEGIN_RECORD: // a new txn starts.
+                                long offset = raf.readLong();
+                                tidToFirstLogRecord.put(tid, offset);
+                                uncommitted.add(tid);
+                                raf.seek(raf.getFilePointer() - LONG_SIZE);
+                                break;
+
+                            case COMMIT_RECORD:
+                                uncommitted.remove(tid);
+                                break;
+
+                            case CLR_RECORD:
+                                Page page = readPageData(raf);
+
+                                HeapFile file = (HeapFile) Database.getCatalog().getDatabaseFile(page.getId().getTableId());
+                                Database.getBufferPool().discardPage(page.getId());
+                                file.writePage(page);
+
+                                raf.skipBytes(LONG_SIZE); // skip undoNextOffset block
+                                break;
+
+                            default:
+                                break;
+                        }
+                        raf.skipBytes(LONG_SIZE); // skip start offset block
+                    } catch (EOFException e) { // reaching the end of the file, stop scanning
+                        break;
+                    }
+                }
+
+                // undo
+                undo(uncommitted);
             }
-         }
+        }
     }
 
     /** Print out a human readable represenation of the log */
     public void print() throws IOException {
-        // some code goes here
+        synchronized (Database.getBufferPool()) {
+            synchronized (this) {
+                // some code goes here
+                raf.seek(0);
+                long cpOffset = raf.readLong();
+
+                if (cpOffset != NO_CHECKPOINT_ID) {
+                    StringBuilder sb = new StringBuilder("CHECKPOINT_RECORD active transactions: ");
+                    raf.seek(cpOffset);
+                    raf.skipBytes(INT_SIZE + LONG_SIZE); // skip type + tid blocks
+                    int numTxn = raf.readInt();
+                    for (int i = 0; i < numTxn; i++) {
+                        long tid = raf.readLong(); // active txn id
+                        sb.append(tid);
+                        sb.append(" ");
+                    }
+                    raf.skipBytes(LONG_SIZE); // skip start offset block
+                    System.out.println(sb);
+                }
+
+                while (true) {
+                    try {
+                        StringBuilder sb = new StringBuilder();
+                        int type = raf.readInt(); // log record type
+                        long tid = raf.readLong(); // log record tid
+                        switch (type) {
+                            case UPDATE_RECORD:
+                                sb.append("UPDATE_RECORD ");
+                                sb.append(tid);
+                                sb.append(" ");
+                                readPageData(raf);
+                                sb.append("before-image");
+                                sb.append(" ");
+                                readPageData(raf);
+                                sb.append("after-image");
+                                sb.append(" ");
+                                break;
+
+                            case BEGIN_RECORD: // a new txn starts.
+                                sb.append("BEGIN_RECORD ");
+                                sb.append(tid);
+                                sb.append(" ");
+                                break;
+
+                            case COMMIT_RECORD:
+                                sb.append("COMMIT_RECORD ");
+                                sb.append(tid);
+                                sb.append(" ");
+                                break;
+
+                            case ABORT_RECORD:
+                                sb.append("ABORT_RECORD ");
+                                sb.append(tid);
+                                sb.append(" ");
+                                break;
+
+                            case CHECKPOINT_RECORD:
+                                sb.append("CHECKPOINT_RECORD active transactions: ");
+                                raf.seek(cpOffset);
+                                raf.skipBytes(INT_SIZE + LONG_SIZE); // skip type + tid blocks
+                                int numTxn = raf.readInt();
+                                for (int i = 0; i < numTxn; i++) {
+                                    long t = raf.readLong(); // active txn id
+                                    sb.append(t);
+                                    sb.append(" ");
+                                }
+                                break;
+
+                            case CLR_RECORD:
+                                sb.append("CLR_RECORD ");
+                                sb.append(tid);
+                                sb.append(" ");
+                                HeapPage page = (HeapPage) readPageData(raf);
+                                sb.append(page.toString());
+                                sb.append(" ");
+
+                                long nextUndoOffset = raf.readLong();
+                                sb.append(nextUndoOffset);
+                                sb.append(" ");
+                                break;
+
+                            default:
+                                break;
+                        }
+                        sb.append(raf.readLong());
+                        System.out.println(sb);
+                    } catch (EOFException e) { // reaching the end of the file, stop scanning
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     public  synchronized void force() throws IOException {

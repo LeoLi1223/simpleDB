@@ -157,7 +157,17 @@ public class BufferPool {
         // not necessary for lab1|lab2
         if (commit) {
             // flush all dirty pages associated with the tid
-            flushPages(tid);
+//            flushPages(tid);
+            for (Page p : pidToPage.values()) {
+                TransactionId dirtier = p.isDirty();
+                if (dirtier != null) {
+                    Database.getLogFile().logWrite(tid, p.getBeforeImage(), p);
+                    Database.getLogFile().force();
+                }
+                // use current page contents as the before-image
+                // for the next transaction that modifies this page.
+                p.setBeforeImage();
+            }
         } else {
             // revert dirty pages of the tid by discarding and re-reading
             Set<PageId> pidToDiscard = new HashSet<>();
@@ -269,6 +279,14 @@ public class BufferPool {
             Page page = pidToPage.get(pid);
             if (page.isDirty() != null) {
                 int tableId = pid.getTableId();
+                // append an update record to the log, with
+                // a before-image and after-image.
+                TransactionId dirtier = page.isDirty();
+                if (dirtier != null && !lockManager.getLockOnTid(dirtier).isEmpty()){
+                    Database.getLogFile().logWrite(dirtier, page.getBeforeImage(), page);
+                    Database.getLogFile().force();
+                }
+
                 Database.getCatalog().getDatabaseFile(tableId).writePage(page);
                 page.markDirty(false, null);
             }
@@ -295,16 +313,20 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1
         PageId toEvict = null;
-        for (int i = 0; i < lruList.size(); i++) {
-            if (pidToPage.get(lruList.get(i)).isDirty() == null) {
-                toEvict = lruList.get(i);
-//                lruList.remove(i);
-                break;
-            }
-        }
-        if (toEvict == null) {
+
+//        lab3: No steal
+//        for (int i = 0; i < lruList.size(); i++) {
+//            if (pidToPage.get(lruList.get(i)).isDirty() == null) {
+//                toEvict = lruList.get(i);
+////                lruList.remove(i);
+//                break;
+//            }
+//        }
+
+        if (lruList.isEmpty()) {
             throw new DbException("Cannot evict any page because all pages are dirty.");
         }
+        toEvict = lruList.get(0);
         flushPage(toEvict);
         discardPage(toEvict);
     }
