@@ -1,0 +1,16 @@
+Feedback for: zli7
+--------------------------------------------------------------
+Total Score (%): 103.5
+Unit Test Score (out of 38): 12
+System Test Score (out of 24): 6
+Code Score (out of 10): 9.5
+Writeup Score (out of 10): 10
+--------------------------------------------------------------
+Code Feedback:
+(-0.5) Please clean up codes and don't leave commented out code in the final version.
+
+Writeup Feedback:
+Great job explaining the lab and your design choices in detail! 
+
+Extra Credit:
+(+4) Missing the brief performance analysis.
