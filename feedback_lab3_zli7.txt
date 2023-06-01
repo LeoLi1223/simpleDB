@@ -1,8 +1,8 @@
 Feedback for: zli7
 --------------------------------------------------------------
 Total Score (%): 103.5
-Unit Test Score (out of 38): 12
-System Test Score (out of 24): 6
+Unit Test Score (out of 12): 12
+System Test Score (out of 6): 6
 Code Score (out of 10): 9.5
 Writeup Score (out of 10): 10
 --------------------------------------------------------------
