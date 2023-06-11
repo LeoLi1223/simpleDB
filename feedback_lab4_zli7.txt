@@ -1,0 +1,13 @@
+Feedback for: zli7
+--------------------------------------------------------------
+Total Score (%): 99.5
+Unit Test Score (out of 0): 0
+System Test Score (out of 10): 10
+Code Score (out of 10): 10
+Writeup Score (out of 10): 9.5
+--------------------------------------------------------------
+Code Feedback:
+Great job!
+
+Writeup Feedback:
+(-0.5) Did not mention NO-FORCE, STEAL policy
